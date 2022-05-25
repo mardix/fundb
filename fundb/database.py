@@ -98,8 +98,7 @@ def _parse_smart_filtering(filters: dict, indexed_columns:list=[]) -> dict:
 
 class Database(object):
     """
-    Fundb
-    Create the database connection
+    ::Database
     """
 
     def __init__(self, filename=":memory:", search_proc=4):
@@ -153,9 +152,9 @@ class Database(object):
 
 class Document(dict):
     """
-    Convert row:sqlite3.Row to dict.
+    ::Document
     """
-    NATIVE_KEYS = ["_id", "_created_at", "_updated_at"]
+
     def __init__(self, collection, row: sqlite3.Row):
         self.collection = collection 
         self._load(row)
@@ -165,8 +164,17 @@ class Document(dict):
 
     def update(self, *a, **kw):
         """
-        Atomic update
+        Update the active Document
+        ie:
+            #update(key=value, key2=value2, ...)
+            #update({ "key": value, "key2": value2 })
+        
+        Args:
+            *args
+            **kwargs
 
+        Returns:
+            Document
         """
         _ = {}
         if a and isinstance(a[0], dict):
@@ -174,14 +182,23 @@ class Document(dict):
         _.update(kw)
         self._load(self.collection.update(_id=self._id, doc=_, as_document=False))
 
-    def replace(self, doc:dict):
-        self._load(self.collection.replace(_id=self._id, doc=doc, as_document=False))
-
     def delete(self):
+        """
+        Delete the Doument
+
+        Returns:
+            None
+        """
         self.collection.delete(self._id)
         self._empty_self()
 
     def _load(self, row:sqlite3.Row):
+        """
+        load the content into the document
+        
+        Args:
+            row: sqlite3.Row
+        """
         self._empty_self()
         self._id = row["_id"]
         doc = {}
@@ -191,12 +208,15 @@ class Document(dict):
         super().__init__(doc)
 
     def _empty_self(self):
+        """ clearout all properties """
         for _ in list(self.keys()):
             if _ in self:
                 del self[_]
 
 class Collection(object):
-
+    """
+    ::Collection
+    """
     # Column you can't query
     NON_QUERYABLE_COLUMNS = ["_json"]
     DEFAULT_COLUMNS = ["_id", "_json", "_created_at", "_modified_at"]
@@ -210,8 +230,9 @@ class Collection(object):
     def _create(self):
         """
         Create a table/collection
+
         Returns:
-          Void
+          None
         """
         with self.db:
             q = "CREATE TABLE IF NOT EXISTS %s (_id VARCHAR(32) PRIMARY KEY, _json TEXT, _created_at TIMESTAMP, _modified_at TIMESTAMP)" % self.name
@@ -266,13 +287,15 @@ class Collection(object):
 
     def get(self, _id: str, as_document: bool = True) -> Document:
         """
-        Return a document by _id
+        Retrieve a document by _id
+
         Args:
           _id:str - the document id
-          raw:bool - when True it will return the raw format of the data
+          as_document:bool - when True it will return the raw format of the data
 
         Returns:
-          Document|NoneType
+          Document
+
         """
         with self.db:
             q = "SELECT * from %s WHERE _id=? LIMIT 1" % self.name
@@ -284,10 +307,15 @@ class Collection(object):
 
     def insert(self, doc: dict, as_document:bool=True) -> Document:
         """
-        Insert a new document
+        Insert a new document in collection
+
         use Smart Insert, by checking if a value in the doc in is a column.
+        
         Args:
           doc:dict - Data to be inserted
+
+        Returns:
+            Document
         """
         if not isinstance(doc, dict):
             raise TypeError('Invalid data type. Must be a dict')
@@ -323,7 +351,7 @@ class Collection(object):
           replace:bool - to completely replace the document
 
         Returns:
-            Document|None
+            Document
         """
         with self.db:
             rdoc = self.get(_id, as_document=False)
@@ -371,11 +399,10 @@ class Collection(object):
         To delete an entry by _id
         """
         with self.db:
-            self.db.execute("DELETE FROM %s WHERE _id=?" %
-                            (self.name), (_id, ))
+            self.db.execute("DELETE FROM %s WHERE _id=?" % (self.name), (_id, ))
         return True
 
-    def find(self, filters: dict = {}, sort: list = [], limit=10, skip=0):
+    def find(self, filters: dict = {}, sort: list = [], limit: int = 10, skip: int = 0) -> cursor.Cursor:
         """
         To query a collection
         Smart Query
@@ -387,7 +414,6 @@ class Collection(object):
           sort:list - [(column, order[-1|1])]
           limit:int - 
           skit:int - 
-
 
         Returns:
           cursor.Cursor
@@ -429,19 +455,6 @@ class Collection(object):
                         data.append(r)
                 else:
                     break
-
-# def chunk_cursor_results(cursor, chunk=2):
-#     while True:
-#         results = cursor.fetchmany(chunk)
-#         if results:
-#             print("C", results)
-#             yield [_row_to_dict(row) for row in results ]
-#         else:
-#             break
-
-            # split data in chunks to filter
-       
-            # flatten data back together for sorting
             if data:
                 data = [Document(self, l1) for l1 in data]
             return cursor.Cursor(data, sort=sort, limit=limit, skip=skip)
@@ -468,8 +481,10 @@ class Collection(object):
     def drop(self):
         """
         Drop/Delete a table/collection
+
         Returns:
-          Void
+            None
+
         """
         with self.db:
             self.db.execute("DROP TABLE %s " % self.name)
@@ -484,8 +499,9 @@ class Collection(object):
                     (column, type),
                     (column, type)
                 ]
+
         Returns:
-            Void
+            None
         """
         with self.db:
             columns = self.columns

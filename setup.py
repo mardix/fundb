@@ -8,7 +8,7 @@ def long_description():
 
 setuptools.setup(
     name='python-fundb',
-    version='0.0.1',
+    version='0.0.0',
     author='Mardix',
     author_email='mardix',
     description='FunDB - a document store build on SQLite, with indexes and search',
