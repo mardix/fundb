@@ -1,20 +1,30 @@
 # FunDB
 
-WIP
+**FunDB** is Hybrid Row-and-Document Oriented datastore leveraging SQL/RDBMS database: SQLite, MySQL, MariaDB, Postgresql 
 
-A document store build on SQLite, leveraging the power of SQLite and JSON
+FunDB is both RDMBS + Document Oriented together.
+
+It supports, regular SQL query along with Document Oriented and Key Value store.
+
+Engine:
+- JSON
+- SQLite
+- Mariadb
+- PostgreSQL
+- MySQL
 
 
 
 ### Install
 
-```
+```python 
 pip install python-fundb
 ```
 
 ### Usage
 
-```
+
+```python
 from fundb import fundb
 
 # Open the db
@@ -63,5 +73,41 @@ for entry in results:
 
 ```
 
+## ~ API ~
+
+## Database
+
+### fundb
+
+### #select
+
+To select a collection in the database
+
+```python
+fun = fundb()
+
+users = fun.select("users")
+
+## or 
+
+users = fun.users
+```
+
+
+### #collections
+
+List all the collections in the database 
+
+```python
+fun = fundb()
+
+users = fun.select("users")
+
+## or 
+
+users = fun.users
+```
+
+##D
 
 

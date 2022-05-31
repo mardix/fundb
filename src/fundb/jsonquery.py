@@ -1,6 +1,6 @@
 #-----------------------------
 # -- fundb --
-# search module
+# dictquery module
 #-----------------------------
 
 import copy

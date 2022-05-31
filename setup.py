@@ -8,10 +8,10 @@ def long_description():
 
 setuptools.setup(
     name='python-fundb',
-    version='0.0.0',
+    version='0.0.11',
     author='Mardix',
-    author_email='mardix',
-    description='FunDB - a document store build on SQLite, with indexes and search',
+    author_email='mardix@blackdevhub.io',
+    description='FunDB: Hybrid Row-and-Document Oriented datastore leveraging SQL/RDBMS database: SQLite, MySQL, MariaDB, Postgresql ',
     long_description=long_description(),
     long_description_content_type='text/markdown',
     url='https://github.com/mardix/fundb',
@@ -21,6 +21,11 @@ setuptools.setup(
         'Topic :: Database',
     ],
     python_requires='>=3.8.0',
-    install_requires=[],
-    py_modules=['fundb'],
+    install_requires = [
+        "pymysql",
+        "sqlparams",
+        "DBUtils"
+    ],
+    packages=['fundb'],
+    package_dir={'':'src'}
 )
