@@ -318,7 +318,7 @@ class MySQLAdapter(Adapter):
             return cursor
         
     def create_collection(self, table):
-        self.execute("CREATE TABLE IF NOT EXISTS %s (_id VARCHAR(32) PRIMARY KEY, _json MEDIUMTEXT, _created_at DATETIME NOT NULL, _modified_at DATETIME NOT NULL)" % table)
+        self.execute("CREATE TABLE IF NOT EXISTS %s (_id VARCHAR(32) PRIMARY KEY, _json JSON, _created_at DATETIME NOT NULL, _modified_at DATETIME NOT NULL)" % table)
 
     def get_columns(self, table: str) -> list:
         try:

@@ -50,7 +50,7 @@ def get_timestamp() -> datetime.datetime:
     Returns:
       int
     """
-    return datetime.datetime.now()
+    return datetime.datetime.utcnow()
 
 
 def gen_id() -> str:
