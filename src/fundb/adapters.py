@@ -62,6 +62,15 @@ class Adapter(object):
         """
         raise NotImplementedError()
 
+    def drop_collection(self, name):
+        """
+        Drop/Delete a table/collection
+
+        Returns:
+            None
+        """
+        self.execute("DROP TABLE %s " % name)
+
     def get_columns(self, table: str) -> list:
         """
         Get all static columns in a collection

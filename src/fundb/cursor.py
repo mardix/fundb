@@ -32,6 +32,9 @@ class Cursor(object):
             return self.cursordat[key]
         return self.currentrec[key]
 
+    def __len__(self):
+        return self.count
+        
     def paginate(self, skip, limit):
         """Paginate list of records"""
         if not self.count or not limit:

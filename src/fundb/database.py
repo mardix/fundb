@@ -26,8 +26,6 @@ def parse_row_to_dict(row:dict) -> dict:
         **row # columns takes precedence. So whatever is there to overwrite _json
     }
 
-
-
 def parse_smart_filtering(filters: dict, indexed_columns:list=[]) -> dict:
     """
     Smart Filter
@@ -90,15 +88,15 @@ class Database(object):
                 - mariadb://username:password@hostname:port/dbname
         """
         if isinstance(dsn_adapter, adapters.Adapter):
-            self.conn = dsn_adapter
+            self.db = dsn_adapter
         elif isinstance(dsn_adapter, str):
             # adapters.SQLiteAdapter(file=":memory:")
             _ = urlparse(dsn_adapter)
             # scheme, username, password, hostname, port, path.strip("/")
             if _.scheme == "sqlite":
-                self.conn = adapters.SQLiteAdapter(dsn_adapter)
+                self.db = adapters.SQLiteAdapter(dsn_adapter)
             elif _.scheme in ["mysql", "mariadb"]:
-                self.conn = adapters.MySQLAdapter(dsn_adapter)
+                self.db = adapters.MySQLAdapter(dsn_adapter)
 
 
     def select(self, name):
@@ -108,7 +106,16 @@ class Database(object):
         Returns:
             Collection
         """
-        return Collection(self.conn, name)
+        return Collection(self.db, name)
+
+    def drop_collection(self, name):
+        """
+        Drop/Delete a table/collection
+
+        Returns:
+            None
+        """
+        self.db.drop_collection(name)
 
     @property
     def collections(self) -> list:
@@ -118,7 +125,7 @@ class Database(object):
         Returns: 
           list
         """
-        return self.conn.get_collections()
+        return self.db.get_collections()
 
 class Document(dict):
     """
@@ -162,7 +169,7 @@ class Document(dict):
         lib.dict_set(obj=data, path=path, value=value)
         self.update(data)
 
-    def pop(self, path:str):
+    def remove(self, path:str):
         """ 
         Remove a property by key/DotNotation and return the value
 
@@ -210,15 +217,134 @@ class Document(dict):
         self.collection.delete(self._id)
         self._empty_self()
 
-    def commit(self):
+
+    """ List Operations """
+
+    def _get_list_item(self, path:str):
+        v = self.get(path)
+        if not isinstance(v, list):
+            raise TypeError("Invalid data type for '%s' " % path)
+        return v
+
+    def ladd(self, path:str, *values:List[Any]):
+        """
+        LADD: Add *values if they don't exist yet
+
+        Args:
+            path:str - the dotnotation path
+            *values: set of items
+        Returns:
+            list: updated data
+        """
+        v = self._get_list_item(path)
+        for val in values:
+            if val not in v:
+                v.append(val)
+        self.set(path=path, value=v)
+        return self.get(path)
+
+    def lpush(self, path:str, *values:List[Any]):
+        """
+        LPUSH: push item to the right of list. 
+
+        Args:
+            path:str - the dotnotation path
+            *values: set of items
+        Returns:
+            list: updated data
+        """
+        v = self._get_list_item(path)
+        v.extend(values)
+        self.set(path=path, value=v)
+        return self.get(path)
+
+    def lpushl(self, path:str, *values:List[Any]):
+        """
+        LPUSHL: push item to the left
+
+        Args:
+            path:str - the dotnotation path
+            *values: set of items
+        Returns:
+            list: updated data
+        """
+        v = self._get_list_item(path)
+        v2 = list(values)
+        v2.extend(v)
+        self.set(path=path, value=v2)
+        return self.get(path)
+
+    def lrem(self, path:str, *values:List[Any]):
+        """
+        LREM: Remove items from a list
+
+        Args:
+            path:str - the dotnotation path
+            *values: set of items
+        Returns:
+            list: updated data
+        """
+        v = self._get_list_item(path)
+        _removed = False
+        for val in values:
+            if val in v:
+                _removed = True
+                v.remove(val)
+        if _removed:
+            self.set(path=path, value=v)
+            return self.get(path)
+        return v
+
+    def lpop(self, path:str): 
+        """
+        Remove value at the end an array/list
+        Args:
+            path:str - the dotnotation path
+        Returns:
+            data that was removed
+
+        """
+        v = self._get_list_item(path)
+        if len(v):
+            self.set(path=path, value=v[:-1])
+            return v[-1]
+        return None 
+
+    def lpopl(self, path:str): 
+        """
+        Remove value at the beginning an array/list
+        Args:
+            path:str - the dotnotation path
+        Returns:
+            data that was removed        
+        """
+        v = self._get_list_item(path)
+        if len(v):
+            self.set(path=path, value=v[1:])  
+            return v[0]
+        return None
+
+    def len(self, path:str):
+        """
+        Get the length of the items in a list/object/dict
+        Args:
+            path:str - the dotnotation path
+        Returns:
+            data that was removed
+        """
+        v = self.get(path)
+        return len(v) if v else 0
+
+    def save(self):
         """
         To commit the data when it's mutated outside.
             doc = Document()
             doc["xone"][1] = True
-            doc.commit()
+            doc.save()
         """
         data = dict(self)
         self.update(data)
+
 
     def _load(self, row:dict):
         """
@@ -249,8 +375,11 @@ class Collection(object):
 
     def __init__(self, conn:adapters.Adapter, name):
         self.name = name
-        self.conn = conn
-        self.conn.create_collection(self.name)
+        self.db = conn
+        self.db.create_collection(self.name)
+
+    def __len__(self):
+        return self.size
 
     # ---- properties ----
 
@@ -262,7 +391,7 @@ class Collection(object):
         Returns:
             list
         """
-        return self.conn.get_columns(self.name)
+        return self.db.get_columns(self.name)
 
     @property
     def indexes(self) -> list:
@@ -272,7 +401,7 @@ class Collection(object):
         Returns:
             list
         """
-        return self.conn.get_indexes(self.name)
+        return self.db.get_indexes(self.name)
 
     @property
     def size(self) -> int:
@@ -282,11 +411,20 @@ class Collection(object):
         Returns:
             int
         """
-        return self.conn.get_size(self.name)
+        return self.db.get_size(self.name)
 
     # ---- methods ----
+    def get(self, _id:str) -> Document:
+        """
+        Get a document by _id
+        Alias to fetch_one(_id)
 
-    def get(self, *a, **kw) -> Document:
+        Returns:
+            Document
+        """
+        return self.fetch_one(_id=_id)
+
+    def fetch_one(self, *a, **kw) -> Document:
         """
         Retrieve 1 document by _id, or other indexed criteria
 
@@ -304,132 +442,26 @@ class Collection(object):
         if "_as_document" in kw:
             _as_document = kw.pop("_as_document")
 
-        filters = {}
-        if a: # expecting the first arg to be _id
-            filters = {"_id": a[0]}
-        elif kw: # multiple 
-            filters = kw
-        else:
+        # expecting the first arg to be _id
+        filters =  {"_id": a[0]} if a else kw
+        if not filters:
             raise Exception("Invalid Collection.get args")
+        r = self.fetch(filters=filters, limit=1, _as_document=_as_document)
+        return r[0] if len(r) else None
 
-        # SMART QUERY
-        # Do the primary search in the columns
-        # If there is more search properties, take it to the json
-        xparams = []
-        xquery = []
-        smart_filters = parse_smart_filtering(filters, indexed_columns=self.columns)
-
-        # Build the SQL query
-        query = "SELECT * FROM %s " % self.name
-
-        # Indexed filtering
-        if smart_filters["SQL_FILTERS"]:
-            for f in smart_filters["SQL_FILTERS"]:
-                xquery.append(" %s %s" % (f[0], f[1]))
-                if isinstance(f[2], list):
-                    for _ in f[2]:
-                        xparams.append(_)
-                else:
-                    xparams.append(f[2])
-        if xquery and xparams:
-            query += " WHERE %s " % " AND ".join(xquery)
-
-        query += " LIMIT 1"       
-        xparams = list(filters.values())
-        row = self.conn.fetchone(query, xparams)
-        if row:
-            return Document(self, row) if _as_document else row
-        return None
-
-    def insert(self, doc: dict, _as_document:bool=True) -> Document:
+    def fetch_all(self, *a, **kw) -> List[Document]:
         """
-        Insert a new document in collection
-
-        use Smart Insert, by checking if a value in the doc in is a column.
-        
-        Args:
-          doc:dict - Data to be inserted
+        Retrieve all content based on criteria return in a list
 
         Returns:
-            Document
+            list
         """
-        if not isinstance(doc, dict):
-            raise TypeError('Invalid data type. Must be a dict')
+        return list(self.fetch(*a, **kw))
 
-        _id = lib.gen_id()
-        ts = lib.get_timestamp()
-        xcolumns = self.DEFAULT_COLUMNS[:]
-        xparams = [_id, lib.json_dumps(doc), ts, ts]
-        q = "INSERT INTO %s " % self.name
-        
-        # indexed data
-        # some data can't be overriden 
-        for col in self.columns:
-            if col in doc and col not in xcolumns:
-                _data = doc[col]
-                if _data:
-                    xcolumns.append(col)
-                    xparams.append(_data)
-
-        q += " ( %s ) VALUES ( %s ) " % (",".join(xcolumns), ",".join(["?" for _ in xparams]))
-        
-        self.conn.execute(q, xparams)
-        return self.get(_id=_id, _as_document=_as_document)
-
-    def update(self, _id: str, doc: dict = {}, replace: bool = False, _as_document=True) -> Document:
+    def fetch(self, filters: dict = {}, sort: list = [], limit: int = 10, skip: int = 0, _as_document=True) -> cursor.Cursor:
         """
-        To update a document
+        To fetch data from the collection
 
-        Args:
-          _id:str - document id
-          doc:dict - the document to update
-          replace:bool - By default document will be merged with existing data
-                  When True, it will save it as is. 
-
-        Returns:
-            Document
-        """
-        rdoc = self.get(_id=_id, _as_document=False)
-        if rdoc:
-            _doc = doc if replace else lib.dict_merge(lib.json_loads(rdoc["_json"]), doc)
-            ts = lib.get_timestamp()
-            
-            xcolumns = ["_json", "_modified_at"]
-            xparams = [lib.json_dumps(_doc), ts]
-
-            q = "UPDATE %s SET " % self.name
-            
-            # indexed data
-            # some data can't be overriden 
-            for col in self.columns:
-                if col in _doc and col not in xcolumns:
-                    _data = _doc[col]
-                    if _data:
-                        xcolumns.append(col)
-                        xparams.append(_data)
-            q += ",".join(["%s = ?" % _ for _ in xcolumns])
-            q += " WHERE _id=?"
-            xparams.append(_id)
-            self.conn.execute(q, xparams)
-            return self.get(_id=_id, _as_document=_as_document)
-        return None
-
-    def delete(self, _id: str) -> bool:
-        """
-        To delete an entry by _id
-        
-        Args:
-            _id:str - entry id
-
-        Returns:
-            Bool
-        """
-        self.conn.execute("DELETE FROM %s WHERE _id=?" % (self.name), (_id, ))
-        return True
-
-    def find(self, filters: dict = {}, sort: list = [], limit: int = 10, skip: int = 0) -> cursor.Cursor:
-        """
-        To query a collection
         Smart Query
           Allow to use primary indexes from sqlite 
           then do the xtra from parsing the documents
@@ -466,13 +498,14 @@ class Collection(object):
                     xparams.append(f[2])
         if xquery and xparams:
             query += " WHERE %s " % " AND ".join(xquery)
+            
 
         # Perform JSON search, as we have JSON_FILTERS
         # Full table scan, relative to WHERE clause
         chunk = 100
         data = []
         if smart_filters["JSON_FILTERS"]:
-            for chunked in self.conn.fetchmany(query, xparams, chunk):
+            for chunked in self.db.fetchmany(query, xparams, chunk):
                 if chunked:
                     rows = [parse_row_to_dict(row) for row in chunked]
                     for r in jsonquery.execute(rows, smart_filters["JSON_FILTERS"]):
@@ -480,7 +513,8 @@ class Collection(object):
                 else:
                     break
             if data:
-                data = [Document(self, d) for d in data]
+                if _as_document:
+                    data = [Document(self, d) for d in data]
             return cursor.Cursor(data, sort=sort, limit=limit, skip=skip)
 
         # Skip JSON SEARCH, use only SQL.
@@ -498,18 +532,102 @@ class Collection(object):
                 xparams.append(skip or 0)
                 xparams.append(limit or 10)
 
-            res = self.conn.fetchall(query, xparams)            
-            data = [Document(self, row) for row in res]
+            res = self.db.fetchall(query, xparams) 
+            if _as_document:           
+                data = [Document(self, row) for row in res]
+            else:
+                data = list(res)
             return cursor.Cursor(data)
 
-    def drop(self):
+    def insert(self, doc: dict, _as_document:bool=True) -> Document:
         """
-        Drop/Delete a table/collection
+        Insert a new document in collection
+
+        use Smart Insert, by checking if a value in the doc in is a column.
+        
+        Args:
+          doc:dict - Data to be inserted
 
         Returns:
-            None
+            Document
         """
-        self.conn.execute("DROP TABLE %s " % self.name)
+        if not isinstance(doc, dict):
+            raise TypeError('Invalid data type. Must be a dict')
+
+        _id = lib.gen_id()
+        ts = lib.get_timestamp()
+        xcolumns = self.DEFAULT_COLUMNS[:]
+        xparams = [_id, lib.json_dumps(doc), ts, ts]
+        q = "INSERT INTO %s " % self.name
+        
+        # indexed data
+        # some data can't be overriden 
+        for col in self.columns:
+            if col in doc and col not in xcolumns:
+                _data = doc[col]
+                if _data:
+                    xcolumns.append(col)
+                    xparams.append(_data)
+
+        q += " ( %s ) VALUES ( %s ) " % (",".join(xcolumns), ",".join(["?" for _ in xparams]))
+        
+        self.db.execute(q, xparams)
+        return self.fetch_one(_id=_id, _as_document=_as_document)
+
+    def update(self, _id: str, doc: dict = {}, replace: bool = False, _as_document=True) -> Document:
+        """
+        To update a document
+
+        Args:
+          _id:str - document id
+          doc:dict - the document to update
+          replace:bool - By default document will be merged with existing data
+                  When True, it will save it as is. 
+
+        Returns:
+            Document
+        """
+        rdoc = self.fetch_one(_id=_id, _as_document=False)
+        if rdoc:
+            _doc = doc if replace else lib.dict_merge(lib.json_loads(rdoc["_json"]), doc)
+            ts = lib.get_timestamp()
+            
+            xcolumns = ["_json", "_modified_at"]
+            xparams = [lib.json_dumps(_doc), ts]
+
+            q = "UPDATE %s SET " % self.name
+            
+            # indexed data
+            # some data can't be overriden 
+            for col in self.columns:
+                if col in _doc and col not in xcolumns:
+                    _data = _doc[col]
+                    if _data:
+                        xcolumns.append(col)
+                        xparams.append(_data)
+            q += ",".join(["%s = ?" % _ for _ in xcolumns])
+            q += " WHERE _id=?"
+            xparams.append(_id)
+            self.db.execute(q, xparams)
+            return self.fetch_one(_id=_id, _as_document=_as_document)
+        return None
+
+    def delete(self, _id: str) -> bool:
+        """
+        To delete an entry by _id
+        
+        Args:
+            _id:str - entry id
+
+        Returns:
+            Bool
+        """
+        self.db.execute("DELETE FROM %s WHERE _id=?" % (self.name), (_id, ))
+        return True
+
+    # def insert_many(self, data:List[dict])
+    # def update_many(self, data:dict, filters:dict)
+    # def delete_many()
 
     def add_columns(self, columns:List[str], enforce_index=False):
         """
@@ -547,7 +665,7 @@ class Collection(object):
                 if enforce_index and indx != "UNIQUE":
                     indx = True
                 cols_stmt.append((col, _type or "TEXT", indx))
-        self.conn.add_columns(table=self.name, cols_stmt=cols_stmt)
+        self.db.add_columns(table=self.name, cols_stmt=cols_stmt)
         
     def add_indexes(self, columns:List[str]):
         """
@@ -558,9 +676,4 @@ class Collection(object):
                 List[str]. Documentation-> #add_columns
         """
         self.add_columns(columns=columns, enforce_index=True)
-
-
-    def __len__(self):
-        return self.size
-
 
