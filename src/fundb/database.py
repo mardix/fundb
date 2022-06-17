@@ -99,14 +99,21 @@ class Database(object):
                 self.db = adapters.MySQLAdapter(dsn_adapter)
 
 
-    def select(self, name):
+    def select(self, name:str, columns:list=None):
         """
         Select a collection
+
+        Args:
+            name: str - collection name
+            columns: list - list of columns and indexes to add
 
         Returns:
             Collection
         """
-        return Collection(self.db, name)
+        collection = Collection(self.db, name)
+        if columns:
+            collection.add_columns(columns)
+        return collection
 
     def drop_collection(self, name):
         """
@@ -635,10 +642,6 @@ class Collection(object):
         self.db.execute("DELETE FROM %s WHERE _id=?" % (self.name), (_id, ))
         return True
 
-    # def insert_many(self, data:List[dict])
-    # def update_many(self, data:dict, filters:dict)
-    # def delete_many()
-
     def add_columns(self, columns:List[str], enforce_index=False):
         """
         To add columns. With options to add indexes
@@ -687,3 +690,7 @@ class Collection(object):
         """
         self.add_columns(columns=columns, enforce_index=True)
 
+    #TODO: 
+    # def insert_many(self, data:List[dict])
+    # def update_many(self, data:dict, filters:dict)
+    # def delete_many()
