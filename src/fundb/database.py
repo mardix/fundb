@@ -129,7 +129,7 @@ class Database(object):
 
 class Document(dict):
     """
-    :: Document
+    Document/ActiveRecord
 
     Every row is a document in FunDB
     """
@@ -138,7 +138,9 @@ class Document(dict):
         self.collection = collection 
         self._load(row)
 
-    def get(self, path:str, default=None)->Any:
+    #--- Basic RUD (read|update|delete)
+
+    def get(self, path:str, default:Any=None)->Any:
         """
         Return a property by key/DotNotation
 
@@ -217,8 +219,7 @@ class Document(dict):
         self.collection.delete(self._id)
         self._empty_self()
 
-
-    """ List Operations """
+    # -- List operations 
 
     def _get_list_item(self, path:str):
         v = self.get(path)
@@ -335,6 +336,7 @@ class Document(dict):
         v = self.get(path)
         return len(v) if v else 0
 
+    # --- misc
     def save(self):
         """
         To commit the data when it's mutated outside.
@@ -366,7 +368,8 @@ class Document(dict):
 
 class Collection(object):
     """
-    ::Collection
+    Collection/Table
+
     """
 
     DEFAULT_COLUMNS = ["_id", "_json", "_created_at", "_modified_at"]
@@ -414,6 +417,7 @@ class Collection(object):
         return self.db.get_size(self.name)
 
     # ---- methods ----
+
     def get(self, _id:str) -> Document:
         """
         Get a document by _id
@@ -426,7 +430,7 @@ class Collection(object):
 
     def fetch_one(self, *a, **kw) -> Document:
         """
-        Retrieve 1 document by _id, or other indexed criteria
+        Retrieve 1 document by _id, or other filters
 
         Args:
           _id:str - the document id
@@ -435,6 +439,12 @@ class Collection(object):
 
         Returns:
           Document
+
+        Examples:
+            #.fetch_one('IDfyeiquyteqtyqiuyt')
+            #.fetch_one(_id="ID....")
+            #.fetch_one(key1=value1, key2=value2, ...)
+            #.fetch_one({key: val, key2: val2, ...})
 
         """
 
@@ -451,10 +461,10 @@ class Collection(object):
 
     def fetch_all(self, *a, **kw) -> List[Document]:
         """
-        Retrieve all content based on criteria return in a list
+        Retrieve all docuemts based on criteria return in a list
 
         Returns:
-            list
+            List[Document]
         """
         return list(self.fetch(*a, **kw))
 

@@ -8,7 +8,7 @@ def long_description():
 
 setuptools.setup(
     name='python-fundb',
-    version='0.0.13',
+    version='0.0.14',
     author='Mardix',
     author_email='mardix@blackdevhub.io',
     description='FunDB: Hybrid Row-and-Document Oriented datastore leveraging SQL/RDBMS database: SQLite, MySQL, MariaDB, Postgresql ',
